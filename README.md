@@ -25,21 +25,25 @@
 
 2. 安卓手机
     阅读软件：https://github.com/gedoor/legado
-    TTS:
-    一加手机自带TTS还不错，断句没问题。
-    multiTTS: 部分文档断句有问题.不保证原版：https://bbs.tatans.cn/topic/98140
 
-3. Docker
+   TTS:
+    一加手机自带TTS还不错，断句没问题。
+
+   multiTTS: 部分文档断句有问题.不保证原版：https://bbs.tatans.cn/topic/98140
+
+4. Docker
    推荐虚拟机安装istoreOS，有htreader，一键安装。
    https://github.com/hectorqin/reader
 
-4. 类似听歌的桌面歌词模式，Windows 10-11 x64设备
+5. 类似听歌的桌面歌词模式，Windows 10-11 x64设备
+
    先安装TTS语音：
       下载并安装中文语音-微软晓晓和云希语音：https://www.cross-plus-a.com/cn/voice.htm
       下载本地语音调用：https://github.com/gexgd0419/NaturalVoiceSAPIAdapter/releases
        解压，双击exe，选择64位，安装。
 
-   小说转音频：https://github.com/Mai-Onsyn/VeloVoice
+   小说转音频：
+   https://github.com/Mai-Onsyn/VeloVoice
    双击exe，打开后，在设置界面改为中文。先删除原提示文件。
    先在“文本处理”中选择小说位置，点击加载。在“音频处理”中启用字幕。
    在"TTS"中选择音频保存位置，选择TTS引擎及语音，并调整语速。点击开始，立即生成wav音频文件及srt字幕。
