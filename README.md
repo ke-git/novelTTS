@@ -2,6 +2,7 @@
 小说本地阅读方案，包括Windows电脑，安卓手机及docker方案
 
 1. Windows 10/11 x64电脑
+
 1.1 Balabolka
    老牌，大文件打开慢。
    下载并安装Balabolka阅读软件：https://www.cross-plus-a.com/cn/balabolka.htm
