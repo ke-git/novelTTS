@@ -124,71 +124,96 @@ def clean_text(content, chapter_matches=None, mode='full'):
 
 def remove_special_chars(content):
     """
-    处理要求2：删除指定的特殊符号，包括全角和半角变体。
-    针对 @#￥%&*+= 及其对应的全角字符进行正则替换删除。
+    清洗文本：仅保留中文、英文、数字以及指定的标点符号和换行符。
     
-    【修复】避免使用复杂的正则表达式构造，改用简单的列表遍历删除
+    参数:
+        content (str): 需要清洗的原始文本
+    
+    返回:
+        str: 清洗后的文本
     """
-    if not content:
-        return ""
-    
-    # 需要删除的半角字符集合
-    half_chars_to_remove = '@#￥%&*+=/'
-    
-    # 对应的全角/特殊 Unicode 字符映射（根据要求覆盖全角/半角）
-    full_chars_map = {
-        '@': '＠', '#': '＃', '$': '＄', '%': '％', '&': '＆', 
-        '*': '＊', '+': '＋', '/': '／', '=': '＝'
+    # 定义允许的字符集合（基于你提供的示例）
+    punctuation_set = {
+        '，', '。', '！', '？', '；', '：', '_',
+        '"', '"', '“', '”', "（", "）","《", "》", "[", "]", "{", "}", '-', '—', '…', 
+        ',', '.', '?', '!', ';', ':', "'", "'", 
+        '(' , ')', '\n'  # 注意：这里包含了换行符
     }
     
-    # 构建所有需要删除的字符集合（包括半角和全角）
-    all_chars_to_remove = set()
+    # 构建正则表达式模式
+    # \u4e00-\u9fff: 匹配所有常用汉字 (CJK Unified Ideographs)
+    # a-zA-Z: 匹配英文字母
+    # 0-9: 匹配数字
+    # [] 内部列出所有允许的标点符号
     
-    for char in half_chars_to_remove:
-        full_match = full_chars_map.get(char, "")
-        if full_match:
-            all_chars_to_remove.add(char)
-            all_chars_to_remove.add(full_match)
-        else:
-            all_chars_to_remove.add(char)
+    pattern = r'[\u4e00-\u9fffa-zA-Z0-9' + ''.join(re.escape(p) for p in punctuation_set) + ']'
     
-    # 简单的遍历删除（避免复杂的正则表达式）
-    cleaned = ""
-    for char in content:
-        if char not in all_chars_to_remove:
-            cleaned += char
+    # 使用 re.findall 提取所有匹配的字符，然后重新拼接
+    cleaned_chars = re.findall(pattern, content)
     
-    return cleaned
-
+    return ''.join(cleaned_chars)
 
 def split_into_lines(content, max_length=42):
-    """智能断行函数：按中英文混合文本，每行最多 max_length 字符。（保持原有逻辑）"""
+    """
+    智能断行函数 v2.0 (基于语义单元)
+    
+    策略：
+    1. 定义“非断行字符”为：汉字、英文字母、数字。
+    2. 定义“断行候选符”为：除换行符外的所有其他符号（标点、空格等）。
+    3. 遇到长度超限，优先在最近的“断行候选符”后断开。
+    4. 若整行无非断行字符（纯标点/空白），则丢弃该行。
+    
+    :param content: 输入文本字符串
+    :param max_length: 每行最大长度 (默认 42)
+    :return: 处理后的列表
+    """
     if not content:
         return []
 
-    # 【修复】使用字符直接定义，避免 \~ 转义警告。
-    # 包含全角/半角标点及换行符
-    punctuation_set = {
-        '。', '！', '？', '…', '，', '.', '?', '|', '/', '\\', '~', ')', '\n'
-    }
-    
     lines = []
     current_line = ""
 
-    for char in content:
-        # 遇到换行符时，如果当前行已满且无断点，强制截断；否则视为普通字符处理
-        if char == '\n':
-            pass 
-        
-        current_line += char
+    # 预定义非断行字符集合 (用于快速判断)
+    # 包含：中文、英文大小写、数字
+    non_break_chars = set('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
+    
+    # 辅助函数：判断是否为“非断行字符”
+    def is_text_char(char):
+        return char in non_break_chars or (char.isalpha() and not char.isascii()) or (char.isdigit() and not char.isascii())
 
-        # 2. 长度控制：超过 max_length (42) 时尝试断行
+    for char in content:
+        if char == '\n':
+            # 处理换行符：保存当前行（如果是有效内容），然后重置
+            if current_line.strip():
+                stripped = current_line.strip()
+                
+                # 【需求 1】检查是否为“纯标点/空白行”
+                # 如果去除空格后，没有任何一个字符是“非断行字符”，则视为无效行丢弃
+                has_text = any(is_text_char(c) for c in stripped)
+                
+                if has_text:
+                    lines.append(current_line)
+            current_line = ""
+        else:
+            current_line += char
+
+        # 长度控制：超过 max_length 时尝试断行
         if len(current_line) > max_length:
             found_break = False
             
-            # 从后往前查找最近的合法断点
-            for i in range(len(current_line), -1, -1):
-                if current_line[i-1] in punctuation_set:
+            # 从后往前遍历，寻找最近的“断行候选符”
+            # i 代表断点后的起始索引 (即切掉前 i 个字符)
+            for i in range(len(current_line), 1, -1): 
+                # 检查位置 i-1 (当前行的最后一个字符) 是否是“断行候选符”
+                last_char = current_line[i-1]
+                
+                # 逻辑：如果不是非断行字符，则它是断行候选符（标点、空格等）
+                if not is_text_char(last_char):
+                    # 【关键】找到合法断点！
+                    # 因为 last_char 是标点/空格，切断后：
+                    # 1. 上一行以标点/空格结尾 (符合需求)
+                    # 2. 下一行以剩余内容开头 (不会以标点开头，除非剩余内容也是标点，但那是下一行的事了)
+                    
                     line_part = current_line[:i]
                     remaining = current_line[i:]
                     
@@ -197,7 +222,7 @@ def split_into_lines(content, max_length=42):
                     found_break = True
                     break
             
-            # 3. 若未找到合法断点（如超长单词），强制截断以满足长度限制 (Req 2)
+            # 【兜底策略】如果整行全是文字（没有标点或空格），找不到断点，强制截断
             if not found_break:
                 split_idx = max_length
                 line_part = current_line[:split_idx]
@@ -208,37 +233,13 @@ def split_into_lines(content, max_length=42):
 
     # 处理剩余内容
     if current_line.strip():
-        lines.append(current_line)
-
-    # 4. 后处理：合并纯标点行 (Req 4) & 首行顶格 (Req 5)
-    final_lines = []
-    
-    for i, line in enumerate(lines):
-        # 【修复】强制去除首尾空格，确保统一顶格显示
-        stripped_line = line.strip()
+        stripped = current_line.strip()
+        has_text = any(is_text_char(c) for c in stripped)
         
-        if not stripped_line:
-            continue
-            
-        # 检查是否为纯标点/符号行（无中英文字符）
-        is_pure_punctuation = True
-        has_text_char = False
-        
-        for char in stripped_line:
-            # 判断是否包含中文或英文字母数字
-            if '\u4e00' <= char <= '\u9fff' or char.isalpha() or char.isdigit():
-                has_text_char = True
-                is_pure_punctuation = False
-                break
-        
-        # 如果当前行是纯标点，且不是第一行（有上一行），则合并到上一行
-        if i > 0 and is_pure_punctuation:
-            final_lines[-1] += ' ' + stripped_line
-        else:
-            final_lines.append(stripped_line)
+        if has_text:
+            lines.append(current_line)
 
-    return [line for line in final_lines if line.strip()]
-
+    return lines
 
 def split_novel_by_30_chapters(
     input_folder='.',
@@ -371,5 +372,5 @@ if __name__ == "__main__":
     split_novel_by_30_chapters(
         input_folder='.',
         output_folder='2', # 显式指定输出文件夹为"2"
-        mode='clean'  
+        mode='part'  
     )
